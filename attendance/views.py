@@ -15,15 +15,20 @@ from django.contrib.auth.models import User
 
 
 def face_distance(a, b):
-    return np.linalg.norm(np.array(a) - np.array(b))
+    a = np.array(a)
+    b = np.array(b)
+
+    if len(a) != len(b):
+        return 999  # skip invalid embeddings
+
+    return np.linalg.norm(a - b)
 
 
 class MarkAttendanceAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = []
 
     def post(self, request):
         face_embedding = request.data.get("face_embedding")
-        device = request.user
 
         if not face_embedding:
             return Response(
@@ -42,6 +47,7 @@ class MarkAttendanceAPIView(APIView):
                 if distance < min_distance:
                     min_distance = distance
                     matched_student = student
+                    break
 
         if not matched_student:
             return Response(
@@ -55,17 +61,13 @@ class MarkAttendanceAPIView(APIView):
         attendance, created = Attendance.objects.get_or_create(
             student=matched_student,
             date=today,
-            defaults={
-                "device": device,
-                "status": "IN"
-            }
+            defaults={"status": "IN"}
         )
 
         # 2️⃣ LOGIN
         if attendance.login_time is None:
             attendance.login_time = timezone.now()
             attendance.status = "IN"
-            attendance.face_verified = True
             attendance.save()
             return Response(
                 {"message": "Attendance checked IN", "status": "IN"},
@@ -91,14 +93,14 @@ class MarkAttendanceAPIView(APIView):
 
 class MyAttendanceAPIView(ListAPIView):
     serializer_class = AttendanceSerializer
-    permission_classes = [AllowAny]
+    permission_classes = []
 
     def get_queryset(self):
         return Attendance.objects.filter(student__user=self.request.user)
 
 
 class RegisterStudentAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = []
 
     def post(self, request):
         serializer = StudentSerializer(data=request.data)
@@ -110,7 +112,7 @@ class RegisterStudentAPIView(APIView):
 
 class AllAttendanceAPIView(ListAPIView):
     serializer_class = AttendanceSerializer
-    permission_classes = [AllowAny]
+    permission_classes = []
 
     def get_queryset(self):
         return Attendance.objects.all()
